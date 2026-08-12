@@ -1,3 +1,45 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+
+url = "https://raw.githubusercontent.com/mwaskom/seaborn-data/master/tips.csv"
+
+df = pd.read_csv(url)
+
+st.title("Restaurant Tips")
+
+st.markdown(
+    "This dataset contains information about restaurant bills and tips. "
+    "It can be used to explore the relationship between the amount of a bill "
+    "and the tip given by the customer."
+)
+
+st.subheader("The data")
+
+st.dataframe(df, width=700, height=250)
+
+st.write(f"The dataset contains {len(df)} rows.")
+
+st.write(df[["total_bill", "tip"]].describe())
+
+st.subheader("Distribution of the total bill")
+
+fig, ax = plt.subplots()
+
+ax.hist(df["total_bill"], bins=20)
+
+ax.set_xlabel("Total Bill")
+ax.set_ylabel("Frequency")
+
+st.pyplot(fig, clear_figure=True)
+
+st.subheader("Total Bill vs. Tip")
+
+fig2, ax2 = plt.subplots()
+
+ax2.scatter(df["total_bill"], df["tip"], s=12)
+
+ax2.set_xlabel("Total Bill")
+ax2.set_ylabel("Tip")
+
+st.pyplot(fig2, clear_figure=True)
