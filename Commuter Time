@@ -1,0 +1,367 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+
+
+
+st.set_page_config(
+    page_title="Connecticut Commuting Times",
+    page_icon="🚗",
+    layout="wide"
+)
+
+
+st.title("🚗 Connecticut Commuting Times")
+st.subheader("Exploring How Long Connecticut Residents Spend Commuting")
+
+st.write(
+    """
+    This interactive dashboard examines commuting patterns across Connecticut.
+    The goal is to compare commuting times between communities and identify
+    areas where residents spend more or less time traveling to work.
+    """
+)
+
+# --------------------------------------------------
+# LOAD DATA
+# --------------------------------------------------
+
+@st.cache_data
+def load_data():
+    return pd.read_csv("commuting.csv")
+
+try:
+    df = load_data()
+
+except Exception as e:
+    st.error("The commuting.csv file could not be found.")
+    st.write("Make sure commuting.csv is uploaded to the same GitHub repository.")
+    st.stop()
+
+
+
+df.columns = (
+    df.columns
+    .str.strip()
+    .str.lower()
+    .str.replace(" ", "_")
+)
+
+
+
+st.sidebar.title("Dashboard Controls")
+
+st.sidebar.write(
+    "Use the options below to explore the Connecticut commuting data."
+)
+
+
+st.header("📊 Dataset Overview")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric(
+        "Number of Rows",
+        f"{df.shape[0]:,}"
+    )
+
+with col2:
+    st.metric(
+        "Number of Columns",
+        f"{df.shape[1]:,}"
+    )
+
+with col3:
+    st.metric(
+        "Missing Values",
+        f"{df.isna().sum().sum():,}"
+    )
+
+with st.expander("View Dataset"):
+    st.dataframe(
+        df,
+        use_container_width=True
+    )
+
+
+
+possible_location_columns = [
+    "town",
+    "city",
+    "community",
+    "location",
+    "name",
+    "geography"
+]
+
+possible_commute_columns = [
+    "mean_travel_time",
+    "mean_commute_time",
+    "commute_time",
+    "average_commute",
+    "average_commute_time",
+    "travel_time"
+]
+
+location_column = None
+commute_column = None
+
+for column in possible_location_columns:
+    if column in df.columns:
+        location_column = column
+        break
+
+for column in possible_commute_columns:
+    if column in df.columns:
+        commute_column = column
+        break
+
+
+
+if commute_column is None:
+
+    st.warning(
+        "The application could not automatically identify your "
+        "commuting-time column."
+    )
+
+    st.write("Columns detected in the dataset:")
+
+    st.write(list(df.columns))
+
+    st.info(
+        "If your commuting column has a different name, update the "
+        "possible_commute_columns list near the top of the program."
+    )
+
+    st.stop()
+
+
+
+df[commute_column] = pd.to_numeric(
+    df[commute_column],
+    errors="coerce"
+)
+
+df_clean = df.dropna(
+    subset=[commute_column]
+).copy()
+
+
+
+st.header("⏱️ Connecticut Commuting Statistics")
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric(
+        "Average Commute",
+        f"{df_clean[commute_column].mean():.1f} minutes"
+    )
+
+with col2:
+    st.metric(
+        "Median Commute",
+        f"{df_clean[commute_column].median():.1f} minutes"
+    )
+
+with col3:
+    st.metric(
+        "Shortest Commute",
+        f"{df_clean[commute_column].min():.1f} minutes"
+    )
+
+with col4:
+    st.metric(
+        "Longest Commute",
+        f"{df_clean[commute_column].max():.1f} minutes"
+    )
+
+
+
+st.header("🏘️ Connecticut Communities")
+
+if location_column is not None:
+
+    community_data = (
+        df_clean
+        .groupby(location_column)[commute_column]
+        .mean()
+        .reset_index()
+    )
+
+    community_data.columns = [
+        "Community",
+        "Average Commute"
+    ]
+
+    community_data = community_data.sort_values(
+        "Average Commute",
+        ascending=False
+    )
+
+  
+    number_to_show = st.slider(
+        "Number of communities to display:",
+        min_value=5,
+        max_value=20,
+        value=10
+    )
+
+    top_communities = community_data.head(
+        number_to_show
+    )
+
+  
+
+    fig = px.bar(
+        top_communities,
+        x="Average Commute",
+        y="Community",
+        orientation="h",
+        title="Connecticut Communities with the Longest Average Commutes",
+        labels={
+            "Average Commute": "Average Commute Time (Minutes)",
+            "Community": "Community"
+        }
+    )
+
+    fig.update_layout(
+        yaxis={
+            "categoryorder": "total ascending"
+        }
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
+
+if location_column is not None:
+
+    st.header("🔎 Longest vs. Shortest Commutes")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        st.subheader("Longest Commutes")
+
+        longest = community_data.head(5)
+
+        st.dataframe(
+            longest,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    with col2:
+
+        st.subheader("Shortest Commutes")
+
+        shortest = (
+            community_data
+            .sort_values("Average Commute")
+            .head(5)
+        )
+
+        st.dataframe(
+            shortest,
+            use_container_width=True,
+            hide_index=True
+        )
+
+
+
+st.header("📈 Distribution of Commute Times")
+
+fig2 = px.histogram(
+    df_clean,
+    x=commute_column,
+    nbins=20,
+    title="Distribution of Connecticut Commute Times",
+    labels={
+        commute_column: "Commute Time (Minutes)",
+        "count": "Number of Communities"
+    }
+)
+
+st.plotly_chart(
+    fig2,
+    use_container_width=True
+)
+
+
+
+if location_column is not None:
+
+    st.header("🔍 Explore an Individual Community")
+
+    communities = sorted(
+        df_clean[location_column]
+        .dropna()
+        .astype(str)
+        .unique()
+    )
+
+    selected_community = st.selectbox(
+        "Select a Connecticut community:",
+        communities
+    )
+
+    selected_data = df_clean[
+        df_clean[location_column].astype(str)
+        == selected_community
+    ]
+
+    if not selected_data.empty:
+
+        selected_commute = selected_data[
+            commute_column
+        ].mean()
+
+        st.metric(
+            f"Average Commute — {selected_community}",
+            f"{selected_commute:.1f} minutes"
+        )
+
+
+
+st.header("💡 Questions This Dashboard Helps Answer")
+
+st.markdown(
+    """
+    - Which Connecticut communities have the longest commutes?
+    - Which communities have the shortest commutes?
+    - What is the typical commuting time?
+    - How widely do commuting times vary?
+    - Are longer commuting times concentrated in certain areas?
+    """
+)
+
+
+
+st.header("📌 Conclusion")
+
+st.write(
+    """
+    The dashboard provides an interactive way to examine commuting
+    patterns throughout Connecticut. By comparing communities and
+    examining the overall distribution of travel times, users can
+    identify geographic differences in commuting.
+    """
+)
+
+
+
+st.markdown("---")
+
+st.caption(
+    "Data Source: U.S. Census Bureau, American Community Survey "
+    "2019–2023 5-Year Estimates, Table B08303 — Travel Time to Work."
+)
+
+st.caption(
+    "Created by Ryan Houston | DSC 205 | 2026"
+)
